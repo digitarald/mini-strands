@@ -1,0 +1,161 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  background: #fbf8f1;
+  color: #2e3830;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------- landing page ---------------- */
+.home {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 48px 20px;
+  background: repeating-linear-gradient(
+    #fbf8f1 0px,
+    #fbf8f1 27px,
+    #e9e0cc 27px,
+    #e9e0cc 28px
+  );
+}
+
+.home-head {
+  max-width: 640px;
+  text-align: center;
+}
+
+.home-mark {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #7ba05b;
+  margin-bottom: 18px;
+}
+
+.home-head h1 {
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1.05;
+  margin: 0 0 14px;
+  font-weight: 800;
+}
+
+.home-head p {
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 0;
+  color: #55605a;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  padding: 28px 26px;
+  border: 1.5px solid #d9cfb8;
+  border-radius: 20px;
+  background: #fffdf8;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 0 #d9cfb8;
+}
+
+.home-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px -12px var(--accent);
+}
+
+.home-card-emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.home-card-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.home-card-tag {
+  font-size: 15px;
+  color: #55605a;
+  line-height: 1.4;
+}
+
+.home-card-go {
+  margin-top: 6px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.home-foot {
+  font-size: 14px;
+  color: #8a8578;
+}
+
+.home-foot a {
+  color: inherit;
+}
+
+/* ---------------- game shell ---------------- */
+.game-shell {
+  position: relative;
+}
+
+.back-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 1000;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  color: #2e3830;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1.5px solid #d9cfb8;
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.back-btn:hover {
+  transform: translateX(-2px);
+  border-color: #7ba05b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
