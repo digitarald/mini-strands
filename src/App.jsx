@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import TimesGarden from "./games/TimesGarden.jsx";
 import DivisionMountain from "./games/DivisionMountain.jsx";
+import ReadyForMath6 from "./games/ReadyForMath6.jsx";
+import BridgeTo81 from "./games/BridgeTo81.jsx";
 
 const GAMES = [
   {
@@ -18,6 +20,22 @@ const GAMES = [
     emoji: "⛰️",
     accent: "#5B7BA0",
     Component: DivisionMountain,
+  },
+  {
+    slug: "ready-for-math-6",
+    title: "Ready for Math 6",
+    tagline: "Rebuild 5th-grade foundations along a notebook number line.",
+    emoji: "📒",
+    accent: "#D97E48",
+    Component: ReadyForMath6,
+  },
+  {
+    slug: "bridge-to-8-1",
+    title: "Bridge to 8.1",
+    tagline: "Summer practice from Math 7 up to Algebra 1, on graph paper.",
+    emoji: "📈",
+    accent: "#5B7DB1",
+    Component: BridgeTo81,
   },
 ];
 
