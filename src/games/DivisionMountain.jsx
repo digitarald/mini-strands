@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ResultsSplash from "../ResultsSplash.jsx";
 
 /* ============================================================
    LONG DIVISION MOUNTAIN — an endless expedition
@@ -99,12 +100,13 @@ function answerFor(step) {
 
 /* ---------------- persistence ---------------- */
 const STORE_KEY = "division-mountain-v1";
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 async function loadState() {
-  try { if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(STORE_KEY); if (r && r.value) return JSON.parse(r.value); } } catch (e) { /* first run */ }
+  try { if (typeof localStorage !== "undefined") { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } } catch (e) { /* first run */ }
   return null;
 }
 async function saveState(s) {
-  try { if (typeof window !== "undefined" && window.storage) await window.storage.set(STORE_KEY, JSON.stringify(s)); } catch (e) { /* offline ok */ }
+  try { if (typeof localStorage !== "undefined") localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) { /* offline ok */ }
 }
 
 /* ---------------- component ---------------- */
@@ -112,7 +114,9 @@ export default function DivisionMountain() {
   const [camp, setCamp] = useState(1);
   const [stars, setStars] = useState({}); // campNo -> 1..3
   const [flags, setFlags] = useState(0);  // scout bonuses earned
+  const [day, setDay] = useState({ date: todayStr(), camps: 0, stars: 0 }); // daily progress (resets each calendar day)
   const [loaded, setLoaded] = useState(false);
+  const [splash, setSplash] = useState(false);
 
   const [prob, setProb] = useState(null);   // {dividend, divisor, script:{steps,quotient,remainder,digits}}
   const [si, setSi] = useState(0);          // step index
@@ -125,11 +129,15 @@ export default function DivisionMountain() {
 
   useEffect(() => {
     loadState().then(s => {
-      if (s) { setCamp(s.camp || 1); setStars(s.stars || {}); setFlags(s.flags || 0); }
+      if (s) {
+        setCamp(s.camp || 1); setStars(s.stars || {}); setFlags(s.flags || 0);
+        const sameDay = s.day && s.day.date === todayStr();
+        setDay(sameDay ? s.day : { date: todayStr(), camps: 0, stars: 0 });
+      }
       setLoaded(true);
     });
   }, []);
-  useEffect(() => { if (loaded) saveState({ camp, stars, flags }); }, [camp, stars, flags, loaded]);
+  useEffect(() => { if (loaded) saveState({ camp, stars, flags, day }); }, [camp, stars, flags, day, loaded]);
   useEffect(() => { if (loaded && !prob) startCamp(camp); /* eslint-disable-line */ }, [loaded]);
 
   function startCamp(c) {
@@ -153,6 +161,10 @@ export default function DivisionMountain() {
       // camp complete
       const s = misses === 0 ? 3 : misses <= 2 ? 2 : 1;
       setStars(prev => ({ ...prev, [camp]: Math.max(prev[camp] || 0, s) }));
+      setDay(d => {
+        const base = d.date === todayStr() ? d : { date: todayStr(), camps: 0, stars: 0 };
+        return { ...base, camps: base.camps + 1, stars: base.stars + s };
+      });
       setDone(true);
       setNote(null);
     } else {
@@ -192,17 +204,50 @@ export default function DivisionMountain() {
 
   const totalStars = Object.values(stars).reduce((a, b) => a + b, 0);
   const tier = prob ? tierFor(camp) : 0;
+  const todayD = day.date === todayStr() ? day : { camps: 0, stars: 0 };
+
+  const milestoneRef = useRef(null); // last-seen tier — auto-pop the splash when the climber crosses into a new tier
+  useEffect(() => {
+    if (!loaded) return;
+    const prevTier = milestoneRef.current;
+    const curTier = tierFor(camp);
+    if (prevTier != null && curTier > prevTier) setSplash(true);
+    milestoneRef.current = curTier;
+  }, [loaded, camp]);
 
   return (
     <div className="wrap">
       <style>{css}</style>
+      {splash && (
+        <ResultsSplash
+          emoji="⛰️"
+          title="Long Division Mountain"
+          accent="#5B7BA0"
+          headline={`Camp ${camp} · ${TIER_NAMES[tier]}`}
+          cheer="Higher every camp — steady steps, one division at a time."
+          today={[
+            { value: todayD.camps, label: "camps" },
+            { value: `★ ${todayD.stars}`, label: "earned" },
+          ]}
+          lifetime={[
+            { value: `★ ${totalStars}`, label: "total stars" },
+            { value: `⚑ ${flags}`, label: "scout flags" },
+            { value: camp, label: "highest camp" },
+          ]}
+          onClose={() => setSplash(false)}
+        />
+      )}
       <div className="page">
         <header className="top">
           <div>
             <div className="eyebrow">Long Division Mountain</div>
             <div className="camptag">Camp {camp} · {TIER_NAMES[tier]}</div>
           </div>
-          <div className="totals">★ {totalStars}<span className="flagchip">⚑ {flags}</span></div>
+          <div className="totals">
+            <button className="sharebtn" onClick={() => setSplash(true)} aria-label="Share progress">📸</button>
+            ★ {totalStars}<span className="flagchip">⚑ {flags}</span>
+            <span className="todaychip">today {todayD.camps}·★{todayD.stars}</span>
+          </div>
         </header>
 
         <CampTrail camp={camp} stars={stars} />
@@ -386,8 +431,11 @@ const css = `
 .top { display:flex; justify-content:space-between; align-items:flex-start; }
 .eyebrow { font-size: 11px; letter-spacing:.14em; text-transform: uppercase; color:#6E7F84; font-weight:600; }
 .camptag { font-size: 20px; font-weight: 800; color:#274248; margin-top: 2px; }
-.totals { font-size: 16px; font-weight: 800; color:#B07B10; display:flex; align-items:center; gap:8px; }
+.totals { font-size: 16px; font-weight: 800; color:#B07B10; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
 .flagchip { font-size: 13px; color:#2E6E5E; background:#E2F0EA; border-radius:99px; padding: 3px 9px; }
+.todaychip { font-size: 12px; font-weight:700; color:#4A6B7A; background:#E7EFF4; border-radius:99px; padding: 3px 9px; }
+.sharebtn { background:#fff; border:1.5px solid #274248; border-radius:99px; font-size:16px; line-height:1; padding:6px 10px; cursor:pointer; }
+.sharebtn:active { transform: translateY(1px); }
 
 .trail { display:flex; gap: 8px; margin: 12px 0; overflow-x:auto; padding-bottom: 4px; }
 .node { flex-shrink:0; width: 54px; background:#fff; border:1.5px solid #C7CFC9; border-radius: 12px; padding: 6px 4px; text-align:center; }

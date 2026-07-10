@@ -26,6 +26,7 @@ src/
   main.jsx            # React entry point
   App.jsx             # landing menu + hash-based routing between games
   index.css           # landing page + game-shell styles
+  ResultsSplash.jsx   # shared screenshot-friendly progress card (share/milestones)
   games/
     TimesGarden.jsx
     DivisionMountain.jsx
@@ -37,6 +38,15 @@ vite.config.js        # Vite config; sets base to /mini-strands/
 ```
 
 Each game is a standalone default-export component that ships its own CSS via an embedded `<style>` block, so adding a new game is just: drop a `.jsx` file in `src/games/` and register it in the `GAMES` array in `src/App.jsx`. Navigation is hash-based (`#/times-garden`), which keeps deep links working on GitHub Pages without server-side routing.
+
+## Progress & sharing
+
+Progress is saved to the browser's `localStorage`, per game (keys like `times-garden-v1`), so a kid can close the tab and pick the garden/mountain/mastery back up right where they left off. Each game tracks two tiers:
+
+- **Lifetime progress** that builds up forever — garden blooms, mountain camps, strand mastery.
+- **Daily progress** — problems answered and points earned *today* — which resets each calendar day but accumulates across multiple sessions in the same day.
+
+Every game also has a shareable **results splash** (`src/ResultsSplash.jsx`): a screenshot-friendly card showing today's and all-time stats, opened from the 📸 Share button or automatically at a milestone (a level-up, a new tier/summit, or a fully-solved strand) — made for dropping into a family group chat.
 
 ## Develop
 

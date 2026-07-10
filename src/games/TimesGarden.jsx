@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ResultsSplash from "../ResultsSplash.jsx";
 
 /* ============================================================
    TIMES GARDEN — an endless multiplication-facts game
@@ -83,11 +84,11 @@ function levelInfo(gp) {
 /* ---------------- persistence ---------------- */
 const STORE_KEY = "times-garden-v1";
 async function loadState() {
-  try { if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(STORE_KEY); if (r && r.value) return JSON.parse(r.value); } } catch (e) { /* first run */ }
+  try { if (typeof localStorage !== "undefined") { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } } catch (e) { /* first run */ }
   return null;
 }
 async function saveState(s) {
-  try { if (typeof window !== "undefined" && window.storage) await window.storage.set(STORE_KEY, JSON.stringify(s)); } catch (e) { /* offline ok */ }
+  try { if (typeof localStorage !== "undefined") localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) { /* offline ok */ }
 }
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 
@@ -97,7 +98,9 @@ export default function TimesGarden() {
   const [gp, setGp] = useState(0);
   const [best, setBest] = useState(0);
   const [dayCount, setDayCount] = useState(0);
+  const [dayGp, setDayGp] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [splash, setSplash] = useState(false);
 
   const [q, setQ] = useState(null);
   const [typed, setTyped] = useState("");
@@ -118,7 +121,9 @@ export default function TimesGarden() {
         setFacts(s.facts || {});
         setGp(s.gp || 0);
         setBest(s.best || 0);
-        setDayCount(s.day && s.day.date === todayStr() ? s.day.count : 0);
+        const sameDay = s.day && s.day.date === todayStr();
+        setDayCount(sameDay ? s.day.count : 0);
+        setDayGp(sameDay ? (s.day.gp || 0) : 0);
       }
       setLoaded(true);
     });
@@ -126,8 +131,8 @@ export default function TimesGarden() {
 
   useEffect(() => {
     if (!loaded) return;
-    saveState({ facts, gp, best, day: { date: todayStr(), count: dayCount } });
-  }, [facts, gp, best, dayCount, loaded]);
+    saveState({ facts, gp, best, day: { date: todayStr(), count: dayCount, gp: dayGp } });
+  }, [facts, gp, best, dayCount, dayGp, loaded]);
 
   useEffect(() => { if (loaded && !q) nextQuestion(facts); /* eslint-disable-line */ }, [loaded]);
 
@@ -165,9 +170,11 @@ export default function TimesGarden() {
         if (ns > best) setBest(ns);
         const gain = 10 + 2 * Math.min(ns, 10) + (fast ? 3 : 0);
         setGp(g => g + gain);
+        setDayGp(d => d + gain);
         setNote(n => n || { kind: "good", msg: fast ? `+${gain} growth · quick! ☀️` : `+${gain} growth` });
       } else {
         setGp(g => g + 4);
+        setDayGp(d => d + 4);
         setNote({ kind: "good", msg: "Got it on the comeback — it'll sprout again soon. +4 growth" });
         soonQueue.current.push({ key: q.key, due: 3 });
       }
@@ -211,9 +218,36 @@ export default function TimesGarden() {
   const bloomCount = Object.values(facts).filter(f => f.b === 4).length;
   const { lvl, title, into } = levelInfo(gp);
 
+  const milestoneRef = useRef(null); // last-seen {lvl, bloom} — auto-pop the splash on a genuine crossing
+  useEffect(() => {
+    if (!loaded) return;
+    const prev = milestoneRef.current;
+    if (prev && (lvl > prev.lvl || bloomCount > prev.bloom)) setSplash(true);
+    milestoneRef.current = { lvl, bloom: bloomCount };
+  }, [loaded, lvl, bloomCount]);
+
   return (
     <div className="wrap">
       <style>{css}</style>
+      {splash && (
+        <ResultsSplash
+          emoji="🌱"
+          title="Times Garden"
+          accent="#3E9C84"
+          headline={`Lv ${lvl} · ${title}`}
+          cheer={bloomCount === FACT_KEYS.length ? "Every fact in bloom — the whole garden is glowing! 🌼" : "Keep tending it — every answer helps something grow."}
+          today={[
+            { value: dayCount, label: "answered" },
+            { value: `+${dayGp}`, label: "growth" },
+          ]}
+          lifetime={[
+            { value: `${bloomCount}/${FACT_KEYS.length}`, label: "in bloom" },
+            { value: best, label: "best streak" },
+            { value: gp, label: "total growth" },
+          ]}
+          onClose={() => setSplash(false)}
+        />
+      )}
       <div className="page">
         <header className="top">
           <div>
@@ -221,15 +255,18 @@ export default function TimesGarden() {
             <div className="leveltag">Lv {lvl} · {title}</div>
             <div className="gpbar"><div className="gpfill" style={{ width: `${(into / GP_PER_LEVEL) * 100}%` }} /></div>
           </div>
-          <button className="gardenbtn" onClick={() => setShowGarden(s => !s)}>
-            {showGarden ? "Back to play" : `🌼 ${bloomCount}/${FACT_KEYS.length}`}
-          </button>
+          <div className="topbtns">
+            <button className="sharebtn" onClick={() => setSplash(true)} aria-label="Share progress">📸</button>
+            <button className="gardenbtn" onClick={() => setShowGarden(s => !s)}>
+              {showGarden ? "Back to play" : `🌼 ${bloomCount}/${FACT_KEYS.length}`}
+            </button>
+          </div>
         </header>
 
         <div className="statsrow">
           <span className={"stat" + (streak >= 5 ? " hot" : "")}>☀️ streak {streak}{banked ? <em className="bank"> (banked {banked})</em> : null}</span>
           <span className="stat">best {best}</span>
-          <span className="stat">today {dayCount}</span>
+          <span className="stat">today {dayCount}{dayGp ? <em className="bank"> · +{dayGp} growth</em> : null}</span>
         </div>
 
         {showGarden ? (
@@ -301,6 +338,9 @@ const css = `
 .gpbar { width: 160px; height: 8px; background:#E4DECB; border-radius: 99px; margin-top: 6px; overflow:hidden; }
 .gpfill { height:100%; background: linear-gradient(90deg,#3E9C84,#FFC24B); border-radius:99px; transition: width .4s ease; }
 .gardenbtn { background:#26413C; color:#FBF8F1; border:none; border-radius: 99px; font-family:inherit; font-weight:700; font-size:14px; padding: 10px 14px; cursor:pointer; min-height:42px; }
+.topbtns { display:flex; gap:8px; align-items:center; }
+.sharebtn { background:#fff; border:1.5px solid #26413C; border-radius:99px; font-size:18px; line-height:1; padding:0 12px; min-height:42px; cursor:pointer; }
+.sharebtn:active { transform: translateY(1px); }
 
 .statsrow { display:flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
 .stat { font-size: 12.5px; font-weight:600; color:#4A554C; background:#fff; border:1.5px solid #D8D2BE; border-radius:99px; padding: 5px 11px; }

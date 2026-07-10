@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ResultsSplash from "../ResultsSplash.jsx";
 
 /* ============================================================
    BRIDGE TO 8.1 — summer practice for Layla (MVWSD)
@@ -494,14 +495,20 @@ function checkAnswer(p, raw) {
   return { status: "wrong" };
 }
 
-/* ---------------- persistence (window.storage) ---------------- */
+/* ---------------- persistence (localStorage) ---------------- */
 const STORE_KEY = "layla-bridge81-v1";
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 async function loadProgress() {
-  try { if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(STORE_KEY); if (r && r.value) return JSON.parse(r.value); } } catch (e) { /* first run */ }
-  return {};
+  try {
+    if (typeof localStorage !== "undefined") {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) { const p = JSON.parse(raw); return p && p.status ? p : { status: p || {}, day: null }; }
+    }
+  } catch (e) { /* first run */ }
+  return { status: {}, day: null };
 }
-async function saveProgress(map) {
-  try { if (typeof window !== "undefined" && window.storage) await window.storage.set(STORE_KEY, JSON.stringify(map)); } catch (e) { /* offline ok */ }
+async function saveProgress(data) {
+  try { if (typeof localStorage !== "undefined") localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) { /* offline ok */ }
 }
 
 /* ---------------- slope-of-progress plot ---------------- */
@@ -524,7 +531,9 @@ function SlopePlot({ solved, total }) {
 export default function BridgeTo81() {
   const [view, setView] = useState({ screen: "home" }); // {screen:'home'} | {screen:'strand', strandId, idx, mix?}
   const [status, setStatus] = useState({}); // id -> 'solid' | 'helped'
+  const [day, setDay] = useState({ date: todayStr(), solved: 0, points: 0 }); // daily progress (resets each calendar day)
   const [loaded, setLoaded] = useState(false);
+  const [splash, setSplash] = useState(false);
   const [input, setInput] = useState("");
   const [picked, setPicked] = useState(null);
   const [feedback, setFeedback] = useState(null); // {kind:'correct'|'slip'|'wrong'|'empty', msg}
@@ -535,11 +544,48 @@ export default function BridgeTo81() {
   const inputRef = useRef(null);
   const lastMixIds = useRef([]); // ids shown in the previous Mix set, to avoid immediate repeats
 
-  useEffect(() => { loadProgress().then(m => { setStatus(m); setLoaded(true); }); }, []);
-  useEffect(() => { if (loaded) saveProgress(status); }, [status, loaded]);
+  useEffect(() => {
+    loadProgress().then(({ status, day }) => {
+      setStatus(status || {});
+      const sameDay = day && day.date === todayStr();
+      setDay(sameDay ? day : { date: todayStr(), solved: 0, points: 0 });
+      setLoaded(true);
+    });
+  }, []);
+  useEffect(() => { if (loaded) saveProgress({ status, day }); }, [status, day, loaded]);
 
   const solvedCount = Object.keys(status).length;
   const solidCount = Object.values(status).filter(s => s === "solid").length;
+  const todayD = day.date === todayStr() ? day : { solved: 0, points: 0 };
+  const strandsComplete = STRANDS.filter(s => { const ps = PROBLEMS.filter(p => p.strand === s.id); return ps.length > 0 && ps.every(p => status[p.id]); }).length;
+
+  const milestoneRef = useRef(null); // last-seen count of fully-solved strands — auto-pop the splash when a strand is completed
+  useEffect(() => {
+    if (!loaded) return;
+    const prev = milestoneRef.current;
+    if (prev != null && strandsComplete > prev) setSplash(true);
+    milestoneRef.current = strandsComplete;
+  }, [loaded, strandsComplete]);
+
+  const splashNode = splash ? (
+    <ResultsSplash
+      emoji="📈"
+      title="Bridge to 8.1"
+      accent="#5B7DB1"
+      headline={`${solvedCount}/${PROBLEMS.length} solved`}
+      cheer={solvedCount === PROBLEMS.length ? "Whole bridge crossed — Algebra 1, here you come! 🎉" : "Nice climb — steady beats cramming, a few a day."}
+      today={[
+        { value: todayD.solved, label: "solved" },
+        { value: todayD.points, label: "points" },
+      ]}
+      lifetime={[
+        { value: `${solvedCount}/${PROBLEMS.length}`, label: "solved" },
+        { value: solidCount, label: "solid" },
+        { value: `${strandsComplete}/${STRANDS.length}`, label: "strands" },
+      ]}
+      onClose={() => setSplash(false)}
+    />
+  ) : null;
 
   const list = view.screen === "strand"
     ? (view.mix ? mixList : PROBLEMS.filter(p => p.strand === view.strandId))
@@ -584,6 +630,12 @@ export default function BridgeTo81() {
       return { ...prev, [problem.id]: clean ? "solid" : "helped" };
     });
   }
+  function bumpDaily(clean) {
+    setDay(d => {
+      const base = d.date === todayStr() ? d : { date: todayStr(), solved: 0, points: 0 };
+      return { ...base, solved: base.solved + 1, points: base.points + (clean ? 3 : 1) };
+    });
+  }
 
   function submit() {
     if (!problem || feedback?.kind === "correct") return;
@@ -591,7 +643,8 @@ export default function BridgeTo81() {
       if (picked === null) { setFeedback({ kind: "empty", msg: "Pick an answer first." }); return; }
       setAttempts(a => a + 1);
       if (picked === problem.correct) {
-        markSolved(hintLevel === 0 && attempts === 0);
+        const clean = hintLevel === 0 && attempts === 0;
+        markSolved(clean); bumpDaily(clean);
         setFeedback({ kind: "correct", msg: praise() });
       } else {
         const slip = problem.slipsByIndex && problem.slipsByIndex[picked];
@@ -602,7 +655,7 @@ export default function BridgeTo81() {
     const res = checkAnswer(problem, input);
     if (res.status === "empty") { setFeedback({ kind: "empty", msg: "Type an answer first." }); return; }
     setAttempts(a => a + 1);
-    if (res.status === "correct") { markSolved(hintLevel === 0 && attempts === 0); setFeedback({ kind: "correct", msg: praise() }); }
+    if (res.status === "correct") { const clean = hintLevel === 0 && attempts === 0; markSolved(clean); bumpDaily(clean); setFeedback({ kind: "correct", msg: praise() }); }
     else if (res.status === "slip") setFeedback({ kind: "slip", msg: res.msg });
     else setFeedback({ kind: "wrong", msg: "Not yet. Re-read the problem, or open a hint below — hints are how mathematicians actually work." });
   }
@@ -625,13 +678,15 @@ export default function BridgeTo81() {
   async function resetAll() {
     if (!confirm("Erase all progress and start fresh?")) return;
     setStatus({});
-    try { if (window.storage) await window.storage.delete(STORE_KEY); } catch (e) {}
+    setDay({ date: todayStr(), solved: 0, points: 0 });
+    try { if (typeof localStorage !== "undefined") localStorage.removeItem(STORE_KEY); } catch (e) {}
   }
 
   /* ---------------- render ---------------- */
   return (
     <div className="wrap">
       <style>{css}</style>
+      {splashNode}
 
       {view.screen === "home" && (
         <div className="page">
@@ -645,6 +700,10 @@ export default function BridgeTo81() {
                 <div className="riseRun"><span className="frac"><span>{solvedCount}</span><span className="bar"></span><span>{PROBLEMS.length}</span></span></div>
                 <div className="plotlabel">your slope so far<br /><span className="sub">{solidCount} solid · {solvedCount - solidCount} with help</span></div>
               </div>
+            </div>
+            <div className="todayrow">
+              <span className="todaystat">Today: {todayD.solved} solved · {todayD.points} pts</span>
+              <button className="sharebtn" onClick={() => setSplash(true)}>📸 Share</button>
             </div>
             <div className="targetnote">Target for the August diagnostic: i-Ready <b>518+</b> and CAASPP Level 3+. Steady beats cramming — a few problems a day.</div>
           </header>
@@ -680,7 +739,10 @@ export default function BridgeTo81() {
         <div className="page">
           <div className="topbar">
             <button className="back" onClick={() => setView({ screen: "home" })}>← All topics</button>
-            <div className="counter">{view.idx + 1} / {list.length}</div>
+            <div className="topbarright">
+              <button className="sharebtn small" onClick={() => setSplash(true)} aria-label="Share progress">📸</button>
+              <div className="counter">{view.idx + 1} / {list.length}</div>
+            </div>
           </div>
 
           <div className="probcard" style={{ "--sc": (strandMeta || {}).color || "#5B7DB1" }}>
@@ -792,6 +854,12 @@ h1 { font-size: 34px; line-height: 1.05; margin: 8px 0 10px; font-weight: 700; l
 .plotlabel .sub { color: #7B8AA0; font-size: 11.5px; }
 
 .targetnote { margin: 14px 0 20px; font-size: 12.5px; line-height: 1.5; color: #5A6B82; border-left: 3px solid #FFE55C; padding-left: 10px; }
+.todayrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.todaystat { font-size: 12.5px; font-weight: 700; color: #47608A; }
+.sharebtn { background: #fff; border: 1.5px solid #24304A; border-radius: 99px; font-family: inherit; font-weight: 700; font-size: 13px; padding: 7px 12px; cursor: pointer; color: #24304A; }
+.sharebtn.small { font-size: 15px; padding: 5px 9px; }
+.sharebtn:active { transform: translateY(1px); }
+.topbarright { display: flex; align-items: center; gap: 10px; }
 
 /* strand cards */
 .strandlist { display: flex; flex-direction: column; gap: 10px; }
