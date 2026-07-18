@@ -74,11 +74,34 @@ function strategyHint(key) {
 }
 
 /* ---------------- levels ---------------- */
-const TITLES = ["Seed", "Sprout", "Seedling", "Sapling", "Gardener", "Green Thumb", "Grove Keeper", "Garden Legend"];
+const TITLES = [
+  "Seed",
+  "Sprout",
+  "Seedling",
+  "Sapling",
+  "Gardener",
+  "Green Thumb",
+  "Grove Keeper",
+  "Garden Legend",
+  "Garden Guardian",
+  "Bloom Builder",
+  "Meadow Maker",
+  "Orchard Keeper",
+  "Canopy Captain",
+  "Wildflower Wizard",
+  "Garden Champion",
+  "Nature's Hero",
+  "Habitat Helper",
+  "Pollinator Pal",
+  "Forest Friend",
+  "Earth Steward",
+];
 const GP_PER_LEVEL = 120;
 function levelInfo(gp) {
   const lvl = Math.floor(gp / GP_PER_LEVEL);
-  return { lvl: lvl + 1, title: TITLES[Math.min(lvl, TITLES.length - 1)], into: gp % GP_PER_LEVEL };
+  const number = lvl + 1;
+  const title = TITLES[lvl] || `Garden Legend ${number - TITLES.length}`;
+  return { lvl: number, title, into: gp % GP_PER_LEVEL };
 }
 
 /* ---------------- persistence ---------------- */
